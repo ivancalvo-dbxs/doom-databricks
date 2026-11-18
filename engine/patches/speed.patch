@@ -1,0 +1,161 @@
+diff --git a/src/d_loop.c b/src/d_loop.c
+index b963054..c76295e 100644
+--- a/src/d_loop.c
++++ b/src/d_loop.c
+@@ -137,6 +137,9 @@ static int GetAdjustedTime(void)
+     return (time_ms * TICRATE) / 1000;
+ }
+ 
++// Game speed multiplier, see i_timer.c. Higher speeds owe more tics per frame.
++extern int agent_speed;
++
+ static boolean BuildNewTic(void)
+ {
+     int	gameticdiv;
+@@ -163,12 +166,12 @@ static boolean BuildNewTic(void)
+        // If playing single player, do not allow tics to buffer
+        // up very far
+ 
+-       if (!net_client_connected && maketic - gameticdiv > 2)
++       if (!net_client_connected && maketic - gameticdiv > 2 * agent_speed)
+            return false;
+ 
+        // Never go more than ~200ms ahead
+ 
+-       if (maketic - gameticdiv > 8)
++       if (maketic - gameticdiv > 8 * agent_speed)
+            return false;
+     }
+     else
+diff --git a/src/doom/CMakeLists.txt b/src/doom/CMakeLists.txt
+index 6e878a0..a6a45bb 100644
+--- a/src/doom/CMakeLists.txt
++++ b/src/doom/CMakeLists.txt
+@@ -65,7 +65,8 @@ add_library(doom STATIC
+             statdump.c      statdump.h
+             st_lib.c        st_lib.h
+             st_stuff.c      st_stuff.h
+-            wi_stuff.c      wi_stuff.h)
++            wi_stuff.c      wi_stuff.h
++            i_bridge.c)
+ 
+ target_include_directories(doom PRIVATE "../" "${CMAKE_CURRENT_BINARY_DIR}/../../")
+ 
+diff --git a/src/doom/d_main.c b/src/doom/d_main.c
+index 014e487..47e0da9 100644
+--- a/src/doom/d_main.c
++++ b/src/doom/d_main.c
+@@ -88,6 +88,12 @@
+ //
+ void D_DoomLoop (void);
+ 
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++void agent_bridge_init(void);
++void agent_frame(void);
++#endif
++
+ static char *gamedescription;
+ 
+ // Location where savegames are stored
+@@ -184,8 +190,7 @@ boolean D_Display (void)
+     // save the current screen if about to wipe
+     if (gamestate != wipegamestate)
+     {
+-	wipe = true;
+-	wipe_StartScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
++	wipe = false;
+     }
+     else
+ 	wipe = false;
+@@ -488,10 +493,15 @@ void D_DoomLoop (void)
+         wipegamestate = gamestate;
+     }
+ 
++#ifdef __EMSCRIPTEN__
++    agent_bridge_init();
++    emscripten_set_main_loop(agent_frame, 0, 1);
++#else
+     while (1)
+     {
+         D_RunFrame();
+     }
++#endif
+ }
+ 
+ 
+diff --git a/src/doom/g_game.c b/src/doom/g_game.c
+index 78bce28..342efa0 100644
+--- a/src/doom/g_game.c
++++ b/src/doom/g_game.c
+@@ -328,6 +328,8 @@ static int G_NextWeapon(int direction)
+ // or reads it from the demo buffer. 
+ // If recording a demo, write it out 
+ // 
++void agent_build_ticcmd(ticcmd_t *cmd);
++
+ void G_BuildTiccmd (ticcmd_t* cmd, int maketic) 
+ { 
+     int		i; 
+@@ -340,6 +342,11 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
+ 
+     memset(cmd, 0, sizeof(ticcmd_t));
+ 
++    // Agent build: only the bridge control mask drives the player.
++    agent_build_ticcmd(cmd);
++    cmd->consistancy = consistancy[consoleplayer][maketic%BACKUPTICS];
++    return;
++
+     cmd->consistancy = 
+ 	consistancy[consoleplayer][maketic%BACKUPTICS]; 
+  
+diff --git a/src/i_timer.c b/src/i_timer.c
+index 4ec6fb0..7a1b09b 100644
+--- a/src/i_timer.c
++++ b/src/i_timer.c
+@@ -28,11 +28,35 @@
+ 
+ static Uint32 basetime = 0;
+ 
++// Agent clock: game time = wall time * speed, frozen while paused.
++// Deltas are clamped so a hidden tab does not fast-forward the game.
++int agent_speed = 1;
++int agent_paused = 0;
++static double agent_ms = 0;
++static Uint32 agent_last = 0;
++
++static Uint32 AgentTicks(void)
++{
++    Uint32 now = SDL_GetTicks();
++    Uint32 dt = now - agent_last;
++
++    agent_last = now;
++    if (dt > 100)
++    {
++        dt = 100;
++    }
++    if (!agent_paused)
++    {
++        agent_ms += (double) dt * agent_speed;
++    }
++    return (Uint32) agent_ms;
++}
++
+ int  I_GetTime (void)
+ {
+     Uint32 ticks;
+ 
+-    ticks = SDL_GetTicks();
++    ticks = AgentTicks();
+ 
+     if (basetime == 0)
+         basetime = ticks;
+@@ -50,7 +74,7 @@ int I_GetTimeMS(void)
+ {
+     Uint32 ticks;
+ 
+-    ticks = SDL_GetTicks();
++    ticks = AgentTicks();
+ 
+     if (basetime == 0)
+         basetime = ticks;
