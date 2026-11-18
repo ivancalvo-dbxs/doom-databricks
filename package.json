@@ -1,0 +1,9 @@
+{
+  "name": "doom-databricks",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "22.x" },
+  "scripts": { "start": "node server/app.js", "test": "vitest run" },
+  "dependencies": { "express": "^5.1.0" },
+  "devDependencies": { "vitest": "^3.2.4", "supertest": "^7.1.4" }
+}
