@@ -32,7 +32,7 @@ GPL source and license files ship in this repo.
 
 ## Bundle variables
 
-Default `app_name` is `doom-databricks` (16 chars).
+Default `app_name` is `doom-databricks` (15 chars).
 Databricks app names must be 2-30 characters, only lowercase letters, digits, and hyphens, unique in the workspace (see [Databricks Apps](https://docs.databricks.com/aws/en/dev-tools/databricks-apps) / create-app docs).
 Do not use underscores.
 If that name is taken, pass a different valid `app_name` (for example `doom-databricks-alice`).
