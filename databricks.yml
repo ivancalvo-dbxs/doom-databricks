@@ -1,0 +1,26 @@
+bundle:
+  name: doom-databricks
+
+variables:
+  app_name:
+    description: Databricks App name (lowercase alphanumeric and hyphens).
+    default: doom-databricks
+  app_users:
+    description: Optional account group granted CAN_USE on the app. Leave empty for deployer-only access.
+    default: ""
+
+resources:
+  apps:
+    doom:
+      name: ${var.app_name}
+      description: Doom played by Databricks ai_decide in the browser.
+      source_code_path: .
+      # DAB uses CAN_VIEW for the Apps API CAN_USE grant.
+      permissions:
+        - level: CAN_VIEW
+          group_name: ${var.app_users}
+
+targets:
+  dev:
+    mode: development
+    default: true
