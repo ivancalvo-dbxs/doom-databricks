@@ -2,3 +2,5 @@ node_modules/
 .databricks/
 .DS_Store
 /tmp/
+.worktrees/
+.polly/
