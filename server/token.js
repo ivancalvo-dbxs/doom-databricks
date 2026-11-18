@@ -1,13 +1,15 @@
 let cached;
 let pending;
 
-export async function getToken() {
+export async function getToken({ forceRefresh = false } = {}) {
+  if (forceRefresh) cached = undefined;
   if (cached && Date.now() < cached.expiresAt) return cached.token;
   if (pending) return pending;
   pending = (async () => {
     const { DATABRICKS_HOST: host, DATABRICKS_CLIENT_ID: id, DATABRICKS_CLIENT_SECRET: secret } = process.env;
     if (!host || !id || !secret) throw Error('Missing Databricks OAuth configuration');
-    const response = await fetch(`${host.replace(/\/$/, '')}/oidc/v1/token`, {
+    const baseUrl = host.includes('://') ? host : `https://${host}`;
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/oidc/v1/token`, {
       method: 'POST',
       headers: { Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: 'client_credentials', scope: 'ai-functions' }),

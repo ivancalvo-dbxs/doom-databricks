@@ -6,6 +6,7 @@ import { createBudget, intervalMs } from './budget.js';
 
 export function createApp({ decide = realDecide } = {}) {
   const app = express();
+  app.disable('x-powered-by');
   const sessions = createSessions();
   const budget = createBudget();
   app.use(express.json({ limit: '32kb' }));
@@ -36,7 +37,10 @@ export function createApp({ decide = realDecide } = {}) {
     finally { session.inFlight = false; }
   });
   app.use(express.static(fileURLToPath(new URL('../public/', import.meta.url))));
-  app.use((error, _req, res, _next) => res.status(error.status === 413 ? 413 : 400).json({ error: 'Invalid request' }));
+  app.use((error, _req, res, _next) => {
+    const status = Number.isInteger(error.status) && error.status >= 400 && error.status < 500 ? error.status : 500;
+    res.status(status).json({ error: status === 500 ? 'Internal server error' : 'Invalid request' });
+  });
   return app;
 }
 

@@ -61,3 +61,59 @@ test('caches OAuth tokens and refreshes sixty seconds before expiry', async () =
   await vi.advanceTimersByTimeAsync(3540000);
   expect(await getToken()).toBe('token-2');
 });
+
+test('accepts a valid label without confidence', async () => {
+  const body = { response: { answers: { action: { choice: 'ATTACK' } } } };
+  expect(await decide({}, deps(body))).toMatchObject({ action: 'ATTACK', confidence: null });
+});
+
+test('uses HTTPS for a workspace host without a scheme', async () => {
+  vi.stubEnv('DATABRICKS_HOST', 'workspace.example/');
+  const result = await decide({}, { ...deps(), fetch: async url => {
+    expect(url).toBe('https://workspace.example/api/2.0/ai-functions/ai-decide');
+    return new Response(JSON.stringify(answer));
+  } });
+  expect(result.action).toBe('ATTACK');
+});
+
+test('uses HTTPS for OAuth when the workspace host has no scheme', async () => {
+  vi.resetModules();
+  const { getToken: freshToken } = await import('./token.js');
+  vi.stubEnv('DATABRICKS_HOST', 'oauth.example/');
+  vi.stubEnv('DATABRICKS_CLIENT_ID', 'client');
+  vi.stubEnv('DATABRICKS_CLIENT_SECRET', 'secret');
+  let tokenUrl;
+  vi.stubGlobal('fetch', async url => {
+    tokenUrl = url;
+    return new Response(JSON.stringify({ access_token: 'fresh', expires_in: 3600 }));
+  });
+  expect(await freshToken()).toBe('fresh');
+  expect(tokenUrl).toBe('https://oauth.example/oidc/v1/token');
+});
+
+test.each([200, 401])('refreshes a rejected cached token and retries only once, final HTTP %i', async finalStatus => {
+  vi.resetModules();
+  const { getToken: freshToken } = await import('./token.js');
+  const { decide: freshDecide } = await import('./decide.js');
+  vi.stubEnv('DATABRICKS_CLIENT_ID', 'client');
+  vi.stubEnv('DATABRICKS_CLIENT_SECRET', 'secret');
+  let tokens = 0;
+  const authorizations = [];
+  vi.stubGlobal('fetch', async (url, init) => {
+    if (url.endsWith('/oidc/v1/token')) return new Response(JSON.stringify({ access_token: `token-${++tokens}`, expires_in: 3600 }));
+    authorizations.push(init.headers.Authorization);
+    return new Response(JSON.stringify(answer), { status: authorizations.length === 1 ? 401 : finalStatus });
+  });
+  expect(await freshToken()).toBe('token-1');
+  const result = await freshDecide({});
+  expect(authorizations).toEqual(['Bearer token-1', 'Bearer token-2']);
+  expect(tokens).toBe(2);
+  if (finalStatus === 200) expect(result.action).toBe('ATTACK');
+  else expect(result.error).toBe('ai_decide HTTP 401');
+});
+
+test.each([200, 500])('rounds decision latency for HTTP %i', async status => {
+  const now = vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(101.6);
+  try { expect((await decide({}, deps(answer, status))).latencyMs).toBe(2); }
+  finally { now.mockRestore(); }
+});

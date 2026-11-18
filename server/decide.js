@@ -23,25 +23,31 @@ export async function decide(observation, { fetch: request = globalThis.fetch, g
       timer = setTimeout(() => { controller.abort(); reject(Error('timeout')); }, 4000);
     });
     const result = await Promise.race([timeout, (async () => {
-      const token = await getToken();
-      if (controller.signal.aborted) throw Error('timeout');
       const host = process.env.DATABRICKS_HOST;
       if (!host) throw Error('Missing DATABRICKS_HOST');
-      const response = await request(`${host.replace(/\/$/, '')}/api/2.0/ai-functions/ai-decide`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: observation, questions: { action: { type: 'choice', instructions: INSTRUCTIONS, criteria } }, options: { version: '1.0' } }),
-        signal: controller.signal,
-      });
+      const baseUrl = host.includes('://') ? host : `https://${host}`;
+      let response;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const token = await getToken({ forceRefresh: attempt === 1 });
+        if (controller.signal.aborted) throw Error('timeout');
+        response = await request(`${baseUrl.replace(/\/$/, '')}/api/2.0/ai-functions/ai-decide`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: observation, questions: { action: { type: 'choice', instructions: INSTRUCTIONS, criteria } }, options: { version: '1.0' } }),
+          signal: controller.signal,
+        });
+        if (response.status !== 401 || attempt === 1) break;
+        await response.body?.cancel();
+      }
       if (!response.ok) throw Error(`ai_decide HTTP ${response.status}`);
       const data = await response.json();
       if (data.error_message) throw Error(data.error_message);
       const answer = data.response?.answers?.action;
-      if (!ACTIONS.includes(answer?.choice) || !Number.isFinite(answer.confidence) || answer.confidence < 0 || answer.confidence > 1) throw Error('Invalid decision response');
-      return { action: answer.choice, confidence: answer.confidence };
+      if (!ACTIONS.includes(answer?.choice)) throw Error('Invalid decision response');
+      return { action: answer.choice, confidence: answer.confidence ?? null };
     })()]);
-    return { ...result, latencyMs: performance.now() - start };
+    return { ...result, latencyMs: Math.round(performance.now() - start) };
   } catch (error) {
-    return { error: controller.signal.aborted ? 'timeout' : error.message || 'Decision failed', latencyMs: performance.now() - start };
+    return { error: controller.signal.aborted ? 'timeout' : error.message || 'Decision failed', latencyMs: Math.round(performance.now() - start) };
   } finally { clearTimeout(timer); }
 }

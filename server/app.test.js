@@ -89,3 +89,25 @@ test('session caps are configurable and stale slots are reclaimed on admission',
   vi.setSystemTime(Date.now() + 1000);
   expect((await request(app).post('/api/session')).status).toBe(201);
 });
+
+test.each([
+  [400, 'application/json', '{'],
+  [413, 'application/json', JSON.stringify({ value: 'x'.repeat(33000) })],
+  [415, 'application/json; charset=invalid', '{}'],
+])('preserves body-parser HTTP %i', async (status, contentType, body) => {
+  const response = await request(createApp()).post('/api/session').set('Content-Type', contentType).send(body);
+  expect(response.status).toBe(status);
+});
+
+test('reports unexpected route errors as HTTP 500', async () => {
+  const app = createApp();
+  vi.spyOn(app.response, 'json').mockImplementationOnce(() => { throw Error('unexpected'); });
+  const response = await request(app).post('/api/session');
+  expect(response.status).toBe(500);
+  expect(response.body).toEqual({ error: 'Internal server error' });
+});
+
+test('does not advertise Express in response headers', async () => {
+  const response = await request(createApp()).get('/healthz');
+  expect(response.headers).not.toHaveProperty('x-powered-by');
+});
