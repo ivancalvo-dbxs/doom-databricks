@@ -12,6 +12,7 @@
 #include "doomstat.h"
 #include "p_local.h"
 #include "r_main.h"
+#include "tables.h"
 #include "d_event.h"
 #include "d_ticcmd.h"
 #include "i_timer.h"
@@ -39,7 +40,9 @@ static char json[4096];
 // Runs before main(), so before SDL creates its event listeners.
 __attribute__((constructor)) static void agent_early(void)
 {
+#ifndef AGENT_DEBUG
     SDL_SetHint(SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT, "#agent-no-keyboard");
+#endif
 }
 
 void agent_bridge_init(void)
@@ -82,10 +85,14 @@ void agent_build_ticcmd(ticcmd_t *cmd)
     if (mask & USE)      cmd->buttons |= BT_USE;
 }
 
+void A_Chase();
+
+// True while mo is in its missile or melee state chain. The chain ends where the
+// run states begin (they call A_Chase), so walking or turning to chase is not an attack.
 static int in_chain(mobj_t *mo, int first)
 {
     state_t *s = &states[first];
-    for (int i = 0; first && i < 6 && s != &states[S_NULL]; i++, s = &states[s->nextstate])
+    for (int i = 0; first && i < 20 && s != &states[S_NULL] && s->action.acp1 != (actionf_p1) A_Chase; i++, s = &states[s->nextstate])
     {
         if (mo->state == s) return 1;
     }
@@ -105,7 +112,33 @@ EMSCRIPTEN_KEEPALIVE int agent_ready(void)
 
 EMSCRIPTEN_KEEPALIVE void agent_set_controls(int m) { mask = m; }
 EMSCRIPTEN_KEEPALIVE void agent_set_paused(int p) { agent_paused = p; }
-EMSCRIPTEN_KEEPALIVE void agent_set_speed(int s) { agent_speed = s; }
+// Only 1, 2, 4 and 8 are accepted; anything else is ignored and the speed stays as it was.
+EMSCRIPTEN_KEEPALIVE void agent_set_speed(int s)
+{
+    if (s == 1 || s == 2 || s == 4 || s == 8)
+    {
+        agent_speed = s;
+    }
+}
+
+#ifdef AGENT_DEBUG
+// Test-only. Compiled into tests/debug-engine/, never into public/engine/.
+EMSCRIPTEN_KEEPALIVE void agent_debug_spawn(int type, int dist)
+{
+    mobj_t *me = players[consoleplayer].mo;
+    int a = me->angle >> ANGLETOFINESHIFT;
+    mobj_t *mo = P_SpawnMobj(me->x + dist * finecosine[a], me->y + dist * finesine[a], ONFLOORZ, type);
+
+    mo->target = me;
+    P_SetMobjState(mo, mo->info->seestate);
+}
+
+EMSCRIPTEN_KEEPALIVE void agent_debug_enable_input(void)
+{
+    SDL_EventState(SDL_KEYDOWN, SDL_ENABLE);
+    SDL_EventState(SDL_KEYUP, SDL_ENABLE);
+}
+#endif
 
 EMSCRIPTEN_KEEPALIVE const char *agent_observe(void)
 {
@@ -116,12 +149,12 @@ EMSCRIPTEN_KEEPALIVE const char *agent_observe(void)
 
     p += snprintf(p, 512,
         "{\"health\":%d,\"armor\":%d,\"ammo\":%d,\"weapon\":%d,\"x\":%d,\"y\":%d,"
-        "\"angle\":%d,\"gametic\":%d,\"paused\":%s,\"monsters\":[",
+        "\"angle\":%d,\"gametic\":%d,\"speed\":%d,\"paused\":%s,\"monsters\":[",
         pl->health, pl->armorpoints,
         weaponinfo[pl->readyweapon].ammo == am_noammo ? -1 : pl->ammo[weaponinfo[pl->readyweapon].ammo],
         pl->readyweapon, me ? me->x >> FRACBITS : 0, me ? me->y >> FRACBITS : 0,
         me ? (int) ((int32_t) me->angle * (360.0 / 4294967296.0)) : 0,
-        gametic, agent_paused ? "true" : "false");
+        gametic, agent_speed, agent_paused ? "true" : "false");
 
     // shortcut: first 8 live monsters in thinker order, not nearest; sort by dist if the AI needs it.
     for (thinker_t *t = thinkercap.next; me && t != &thinkercap && p < end; t = t->next)

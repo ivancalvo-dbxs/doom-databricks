@@ -12,6 +12,7 @@
     observe: function () { return JSON.parse(UTF8ToString(Module._agent_observe())); },
     setControls: function (mask) { Module._agent_set_controls(mask | 0); },
     setPaused: function (b) { Module._agent_set_paused(b ? 1 : 0); },
-    setSpeed: function (n) { Module._agent_set_speed(n); },
+    // Only 1, 2, 4 and 8 are accepted; anything else (including strings and 2.5) is ignored.
+    setSpeed: function (n) { if ([1, 2, 4, 8].indexOf(n) >= 0) Module._agent_set_speed(n); },
   };
 })();
