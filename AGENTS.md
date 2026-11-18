@@ -14,7 +14,8 @@ This file is for coding agents that deploy or destroy this project unattended.
 ## Prerequisite: AI Decide Preview
 
 A workspace admin must enable **AI Decide Preview**.
-If `POST /api/2.0/ai-functions/ai-decide` returns `PERMISSION_DENIED`, stop and tell the user the preview is not enabled.
+If the REST call fails with text like `AI Decide Preview is not enabled`, stop and tell the user the preview is not enabled.
+Other `PERMISSION_DENIED` responses are different grant problems; report them as such.
 Do not invent a local gameplay policy to work around a missing preview.
 
 ## Cost warning
@@ -22,36 +23,50 @@ Do not invent a local gameplay policy to work around a missing preview.
 Each decision calls `ai_decide` and costs money.
 Keep sessions short, pause when idle, and destroy the app when finished.
 
+## Bundle variables (keep deploy and destroy aligned)
+
+Default `app_name` is `doom-databricks-${workspace.current_user.short_name}`.
+Optional `app_users` is the account group granted `CAN_USE` on the app (resource-level permission; leave empty for deployer-only).
+
+Pass the same values on validate, deploy, run, and destroy.
+Persist them so destroy uses the same app name, for example:
+
+```bash
+export BUNDLE_VAR_app_name='doom-databricks-alice'
+export BUNDLE_VAR_app_users='SOME_GROUP'   # optional
+```
+
+Or use a gitignored local override that your session reloads every time.
+Do not set `app_name` only on deploy and then destroy with defaults.
+
 ## Exact deploy steps
 
 Replace `YOUR_PROFILE` with the deployer's Databricks CLI profile name.
 
 ```bash
+VARS=(--var='app_name=doom-databricks-alice' --var='app_users=SOME_GROUP')
+
 ./scripts/preflight.sh YOUR_PROFILE
-databricks bundle validate -t dev --profile YOUR_PROFILE
-databricks bundle deploy -t dev --profile YOUR_PROFILE
-databricks bundle run doom -t dev --profile YOUR_PROFILE
+databricks bundle validate -t dev --profile YOUR_PROFILE "${VARS[@]}"
+databricks bundle deploy -t dev --profile YOUR_PROFILE "${VARS[@]}"
+databricks bundle run doom -t dev --profile YOUR_PROFILE "${VARS[@]}"
 ```
 
-Optional variables:
-
-```bash
-databricks bundle deploy -t dev --profile YOUR_PROFILE \
-  --var="app_name=doom-databricks" \
-  --var="app_users=SOME_GROUP"
-```
+If you rely on defaults / `BUNDLE_VAR_*` instead, omit `"${VARS[@]}"` but keep the same persisted values for destroy.
 
 `app_users` is optional.
 Leave it empty for deployer-only access.
-When set, the group receives CAN_USE (bundle permission level `CAN_VIEW`).
+When set, the group receives resource-level `CAN_USE`.
 
 `app.yaml` runs `npm run start`.
-Do not change that command unless the Node start script changes.
+That script and `package.json` come from the server-api work (PR #1).
+Do not change the start command unless that script changes.
 
 ## Exact destroy steps
 
 ```bash
-databricks bundle destroy -t dev --auto-approve --profile YOUR_PROFILE
+VARS=(--var='app_name=doom-databricks-alice' --var='app_users=SOME_GROUP')
+databricks bundle destroy -t dev --auto-approve --profile YOUR_PROFILE "${VARS[@]}"
 databricks apps list --profile YOUR_PROFILE
 ```
 
@@ -65,8 +80,8 @@ Destroy must leave no app and no warehouse from this project.
 2. Auth for the given profile
 3. That `ai_decide` REST works
 
-A `PERMISSION_DENIED` from the REST call means the AI Decide preview is not enabled.
-Print that clearly and exit non-zero.
+If the error text includes `AI Decide Preview is not enabled`, print that the preview is disabled and exit non-zero.
+Other `PERMISSION_DENIED` results get a different message about caller grants.
 
 ## Scope reminders
 

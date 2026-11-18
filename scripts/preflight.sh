@@ -78,8 +78,11 @@ api_rc=$?
 set -e
 
 if [[ ${api_rc} -ne 0 ]] || printf '%s\n' "${api_out}" | grep -qi 'PERMISSION_DENIED'; then
-  if printf '%s\n' "${api_out}" | grep -qi 'PERMISSION_DENIED'; then
+  if printf '%s\n' "${api_out}" | grep -qi 'AI Decide Preview is not enabled'; then
     die "AI Decide preview is not enabled in this workspace (PERMISSION_DENIED). Ask a workspace admin to enable AI Decide Preview, then re-run preflight."
+  fi
+  if printf '%s\n' "${api_out}" | grep -qi 'PERMISSION_DENIED'; then
+    die "ai_decide REST returned PERMISSION_DENIED (not the AI Decide Preview message). Check the caller's grants for ai-functions. Detail: ${api_out}"
   fi
   die "ai_decide REST check failed: ${api_out}"
 fi

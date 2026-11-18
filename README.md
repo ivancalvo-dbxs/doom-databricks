@@ -5,11 +5,14 @@ Doom runs in the browser as a Databricks App and is played only by the `ai_decid
 Viewers watch.
 Keyboard and mouse never drive the game.
 
+This branch depends on the Node app from PR #1 (`polly/server-api`), including `package.json` with `npm run start`.
+Merge or rebase that work before a real deploy.
+
 ## Prerequisites
 
 1. Databricks CLI `>= 0.250.0` and a configured workspace profile.
 2. **AI Decide Preview** enabled by a workspace admin.
-   Without it, `POST /api/2.0/ai-functions/ai-decide` returns `PERMISSION_DENIED`.
+   Without it, `POST /api/2.0/ai-functions/ai-decide` returns `PERMISSION_DENIED` with text like `AI Decide Preview is not enabled`.
 3. Node 22 available for local runs and for the app runtime.
 
 ## Cost warning
@@ -27,35 +30,54 @@ Game data is Freedoom (BSD-style).
 No commercial Doom WAD is included.
 GPL source and license files ship in this repo.
 
+## Bundle variables
+
+Default `app_name` is `doom-databricks-${workspace.current_user.short_name}` so concurrent deployers do not collide.
+Optional `app_users` grants a group `CAN_USE` on the app.
+Leave `app_users` empty for deployer-only access.
+
+Pass the same `app_name` / `app_users` on validate, deploy, run, and destroy.
+Persist them so destroy targets the same app, for example:
+
+```bash
+export BUNDLE_VAR_app_name='doom-databricks-alice'
+export BUNDLE_VAR_app_users='my-group'   # optional; omit or leave empty for deployer-only
+```
+
+Or keep a gitignored local override (for example `databricks.local.yml` / your team's usual pattern) and load the same values every time.
+
 ## Agent deploy (non-interactive)
 
 Use your own CLI profile.
 Do not put host, profile, or IDs into `databricks.yml`.
 
 ```bash
-# 0) Optional: name the app and grant a group CAN_USE (DAB level CAN_VIEW)
-#    --var="app_name=my-doom" --var="app_users=my-group"
+# Optional overrides (or use BUNDLE_VAR_* as above)
+VARS=(--var='app_name=doom-databricks-alice' --var='app_users=my-group')
 
 # 1) Preflight (CLI version, auth, ai_decide enabled)
 ./scripts/preflight.sh YOUR_PROFILE
 
 # 2) Validate
-databricks bundle validate -t dev --profile YOUR_PROFILE
+databricks bundle validate -t dev --profile YOUR_PROFILE "${VARS[@]}"
 
 # 3) Deploy
-databricks bundle deploy -t dev --profile YOUR_PROFILE
+databricks bundle deploy -t dev --profile YOUR_PROFILE "${VARS[@]}"
 
 # 4) Open / run the app (prints the app URL)
-databricks bundle run doom -t dev --profile YOUR_PROFILE
+databricks bundle run doom -t dev --profile YOUR_PROFILE "${VARS[@]}"
 ```
 
 `app.yaml` starts the server with `npm run start`.
-The platform installs Node dependencies from `package.json` on deploy.
+The platform installs Node dependencies from `package.json` on deploy (from the server-api work).
 
 ## Agent destroy (non-interactive)
 
+Use the same `app_name` / `app_users` (or the same `BUNDLE_VAR_*`) as deploy.
+
 ```bash
-databricks bundle destroy -t dev --auto-approve --profile YOUR_PROFILE
+VARS=(--var='app_name=doom-databricks-alice' --var='app_users=my-group')
+databricks bundle destroy -t dev --auto-approve --profile YOUR_PROFILE "${VARS[@]}"
 ```
 
 Confirm nothing remains:
