@@ -3,8 +3,8 @@ bundle:
 
 variables:
   app_name:
-    description: Databricks App name (lowercase alphanumeric and hyphens). Namespaced per deployer by default.
-    default: doom-databricks-${workspace.current_user.short_name}
+    description: Databricks App name. Must be 2-30 chars, lowercase letters/digits/hyphens only, unique in the workspace. Override if the default collides.
+    default: doom-databricks
   app_users:
     description: Optional account group granted CAN_USE on the app. Leave empty for deployer-only access.
     default: ""

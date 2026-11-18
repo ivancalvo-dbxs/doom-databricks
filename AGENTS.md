@@ -25,7 +25,10 @@ Keep sessions short, pause when idle, and destroy the app when finished.
 
 ## Bundle variables (keep deploy and destroy aligned)
 
-Default `app_name` is `doom-databricks-${workspace.current_user.short_name}`.
+Default `app_name` is `doom-databricks`.
+App names must be 2-30 chars, lowercase letters/digits/hyphens only, unique in the workspace.
+Underscores are invalid.
+If the default is taken, pass another valid name via `--var` or `BUNDLE_VAR_app_name`.
 Optional `app_users` is the account group granted `CAN_USE` on the app (resource-level permission; leave empty for deployer-only).
 
 Pass the same values on validate, deploy, run, and destroy.
