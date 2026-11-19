@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doom on ai_decide</title>
+<style>
+  body { margin: 0; padding: 16px; background: #111; color: #eee; font: 14px/1.4 ui-monospace, Menlo, monospace; text-align: center; }
+  #canvas { display: block; margin: 0 auto 12px; width: min(100%, 960px, calc((100vh - 110px) * 4 / 3)); aspect-ratio: 4 / 3; background: #000; image-rendering: pixelated; }
+  button { font: inherit; padding: 4px 12px; margin: 0 2px; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; cursor: pointer; }
+  button.on { background: #ff3621; border-color: #ff3621; color: #fff; }
+  #hud { margin-top: 12px; min-height: 1.4em; }
+  #hud b { color: #ff3621; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="640" height="480"></canvas>
+<div><button id="pause">Pause</button> <span id="speeds"></span></div>
+<div id="hud">loading...</div>
+<script src="/engine/doom.js"></script>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
