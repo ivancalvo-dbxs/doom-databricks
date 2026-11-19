@@ -16,6 +16,7 @@
 #include "d_event.h"
 #include "d_ticcmd.h"
 #include "i_timer.h"
+#include "i_video.h"
 
 extern int agent_speed;
 extern int agent_paused;
@@ -65,7 +66,13 @@ void agent_frame(void)
     static int last = -1;
     int now = I_GetTime();
 
-    if (agent_paused || now == last)
+    if (agent_paused)
+    {
+        // Redraw the frozen scene after SDL resizes or clears the canvas.
+        I_FinishUpdate();
+        return;
+    }
+    if (now == last)
     {
         return;
     }
