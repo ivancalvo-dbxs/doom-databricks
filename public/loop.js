@@ -3,8 +3,8 @@ import { CONTROL as C } from './controls.js';
 const MASK = { MOVE_FORWARD: C.FORWARD, MOVE_BACK: C.BACK, STRAFE_LEFT: C.STRAFE_L, STRAFE_RIGHT: C.STRAFE_R, TURN_LEFT: C.TURN_L, TURN_RIGHT: C.TURN_R, ATTACK: C.FIRE, USE: C.USE, WAIT: 0 };
 
 // One request in flight; the next one is scheduled intervalMs after the previous reply.
-export function startLoop({ bridge, api, onHud, intervalMs = 400 }) {
-  let userPaused = false, stopped = false, pending = false, seq = 0, timer, holdTimer, interval = intervalMs;
+export function startLoop({ bridge, api, onHud, intervalMs = 400, paused = false }) {
+  let userPaused = paused, stopped = false, pending = false, seq = 0, timer, holdTimer, interval = intervalMs;
   const times = [], t0 = Date.now();
   const hud = { latencyMs: null, perSec: 0, decisions: 0, health: null, action: 'WAIT', noDecision: false, ended: null };
   const active = () => !stopped && !userPaused && !document.hidden;

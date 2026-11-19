@@ -168,3 +168,19 @@ test('decisions/s decays to 0 while noDecision replies arrive', async ({ page })
   await expect(hud(page)).toContainText('NO DECISION');
   await expect(hud(page)).toContainText('0.0 decisions/s', { timeout: 15000 }); // the 10 s window empties
 });
+
+test('Pause clicked while the session is being created keeps the loop paused until Resume', async ({ page }) => {
+  let open;
+  const sessionGate = new Promise((r) => (open = r));
+  const log = await setup(page, { sessionGate, decide: async (_b, n) => ok('WAIT', n) });
+  await expect.poll(() => log.sessions).toBe(1);
+  await page.click('#pause');
+  await page.click('#speeds button:nth-child(3)');
+  open();
+  await page.waitForTimeout(500);
+  expect(log.decides.length).toBe(0);
+  await expect(page.locator('#pause')).toHaveText('Resume');
+  expect((await page.evaluate(() => DoomBridge.observe())).paused).toBe(true);
+  await page.click('#pause');
+  await expect.poll(() => log.decides.length).toBeGreaterThan(0);
+});

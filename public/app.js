@@ -40,8 +40,8 @@ async function start() {
       return r.json();
     },
   };
-  loop = startLoop({ bridge: DoomBridge, api, onHud: showHud, intervalMs });
-  loop.setSpeed(speed);
+  DoomBridge.setSpeed(speed);
+  loop = startLoop({ bridge: DoomBridge, api, onHud: showHud, intervalMs, paused }); // honour clicks made while the session was being created
 }
 
 addEventListener('pagehide', end);
