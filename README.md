@@ -5,9 +5,6 @@ Doom runs in the browser as a Databricks App and is played only by the `ai_decid
 Viewers watch.
 Keyboard and mouse never drive the game.
 
-This branch depends on the Node app from PR #1 (`polly/server-api`), including `package.json` with `npm run start`.
-Merge or rebase that work before a real deploy.
-
 ## Prerequisites
 
 1. Databricks CLI `>= 0.250.0` and a configured workspace profile.
@@ -103,3 +100,28 @@ The server binds `0.0.0.0` on `DATABRICKS_APP_PORT` (fallback `8000`).
 Only one Databricks App (`resources.apps.doom`).
 No SQL warehouse.
 `bundle destroy` removes the app and leaves no warehouse behind.
+
+## Deployment verification (2026-11-18)
+
+A real workspace deployment reached compute `ACTIVE`, app `RUNNING`, and deployment `SUCCEEDED`.
+The 27 MB `public/engine/doom.data` uploaded and was included in the running deployment.
+The lockfile uses public npm registry URLs because the original proxy returned HTTP 404 during the Apps dependency install.
+Bundle sync excludes tests and engine source archives; `.gitignore` excludes `node_modules` and `.worktrees`.
+Engine source remains available in this repository for GPL compliance.
+
+Authenticated requests using a workspace OAuth bearer token produced these single-session measurements:
+
+| Request | Status | Client elapsed | Result |
+| --- | --- | --- | --- |
+| GET `/healthz` | 200 | 462 ms | Healthy |
+| POST `/api/session` | 201 | 485 ms | Session created, interval 400 ms |
+| POST `/api/decide`, probe 1 | 200 | 4,465 ms | `noDecision` |
+| POST `/api/decide`, probe 2 | 200 | 4,464 ms | `MOVE_FORWARD`, server latency 3,935 ms, hold 300 ms |
+| POST `/api/decide`, probe 3 | 200 | 5,144 ms | `noDecision` |
+| DELETE test session | 204 | 580 ms | Session released |
+
+The real action confirms the app service principal obtained an `ai-functions` token and called AI Decide successfully without user token forwarding or additional user scopes.
+Two of three probes returned `noDecision`, consistent with inference exceeding the existing four-second timeout.
+These are smoke-test observations, not sustained throughput measurements or browser gameplay verification.
+No cadence constants were changed from this small sample.
+The app was left running for inspection; destroy was deliberately skipped.

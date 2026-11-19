@@ -1,6 +1,12 @@
 bundle:
   name: doom-databricks
 
+sync:
+  exclude:
+    - tests/**
+    - server/*.test.js
+    - engine/source/**
+
 variables:
   app_name:
     description: Databricks App name. Must be 2-30 chars, lowercase letters/digits/hyphens only, unique in the workspace. Override if the default collides.
