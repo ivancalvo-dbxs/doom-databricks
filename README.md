@@ -182,6 +182,9 @@ Screenshots were captured for playing, paused at 8x, and a narrow viewport under
 The app was left deployed; browser gameplay was paused after checking it.
 
 The narrow viewport check found a black canvas when resizing while paused because SDL cleared its drawing buffer and the paused bridge skipped rendering.
-The bridge now presents the frozen framebuffer while paused, without running game ticks or sending decisions.
+The bridge now processes SDL window events and presents the frozen framebuffer while paused, without running game ticks or sending decisions.
 Both production and debug WASM artifacts were rebuilt with the pinned Emscripten 3.1.74 toolchain.
 A screenshot-pixel regression test verifies that resizing preserves visible scene pixels and leaves the game tick unchanged.
+
+The deployed resize fix was verified at a 390-pixel viewport: the scene remained visible, the document width stayed 390 pixels, and the game tick stayed at 78 through the resize.
+Processing SDL window events while paused is required to update the renderer after the canvas size changes.

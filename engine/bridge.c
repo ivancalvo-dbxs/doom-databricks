@@ -69,6 +69,7 @@ void agent_frame(void)
     if (agent_paused)
     {
         // Redraw the frozen scene after SDL resizes or clears the canvas.
+        I_StartTic();
         I_FinishUpdate();
         return;
     }
