@@ -1,9 +1,17 @@
 {
+  "name": "doom-databricks",
   "private": true,
-  "devDependencies": {
-    "@playwright/test": "^1.49.0"
-  },
+  "type": "module",
+  "engines": { "node": "22.x" },
   "scripts": {
+    "start": "node server/app.js",
+    "test": "vitest run server",
     "test:engine": "playwright test tests/engine.spec.js"
+  },
+  "dependencies": { "express": "^5.1.0" },
+  "devDependencies": {
+    "vitest": "^3.2.4",
+    "supertest": "^7.1.4",
+    "@playwright/test": "^1.49.0"
   }
 }

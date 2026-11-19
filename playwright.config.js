@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   testDir: 'tests',
   timeout: 120000,
   use: { baseURL: 'http://localhost:4173' },

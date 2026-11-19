@@ -1,7 +1,8 @@
 // Tiny static server for the engine test (repo root, correct wasm MIME type).
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const types = { '.js': 'text/javascript', '.wasm': 'application/wasm', '.html': 'text/html' };
 http.createServer((req, res) => {
   const file = path.join(__dirname, '..', decodeURIComponent(req.url.split('?')[0]));
