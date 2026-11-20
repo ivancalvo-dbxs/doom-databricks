@@ -32,11 +32,14 @@ test.each([
   expect(await decide({}, deps(body, status))).toMatchObject({ error: expect.any(String), latencyMs: expect.any(Number) });
 });
 
-test('times out after four seconds even if a dependency never settles', async () => {
+test('times out after fifteen seconds even if a dependency never settles', async () => {
   vi.useFakeTimers();
+  const log = vi.spyOn(console, 'info').mockImplementation(() => {});
   const pending = decide({}, { getToken: () => new Promise(() => {}), fetch: vi.fn() });
-  await vi.advanceTimersByTimeAsync(4000);
+  await vi.advanceTimersByTimeAsync(15000);
   expect(await pending).toMatchObject({ error: 'timeout' });
+  expect(JSON.parse(log.mock.calls.at(-1)[0])).toMatchObject({ outcome: 'timeout', tokenMs: 15000 });
+  log.mockRestore();
 });
 
 test('network and token errors never throw', async () => {
@@ -116,4 +119,22 @@ test.each([200, 500])('rounds decision latency for HTTP %i', async status => {
   const now = vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(101.6);
   try { expect((await decide({}, deps(answer, status))).latencyMs).toBe(2); }
   finally { now.mockRestore(); }
+});
+
+test('logs token, serialization and upstream durations without credentials or observations', async () => {
+  const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+  try {
+    await decide({ health: 80, privateMarker: 'do-not-log' }, deps());
+    const event = JSON.parse(log.mock.calls.at(-1)?.[0] ?? '{}');
+    expect(event).toMatchObject({ event: 'ai_decide', outcome: 'success', tokenMs: expect.any(Number), serializeMs: expect.any(Number), upstreamMs: expect.any(Number), latencyMs: expect.any(Number), requestBytes: expect.any(Number), attempts: 1 });
+    expect(JSON.stringify(log.mock.calls)).not.toContain('do-not-log');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('secret');
+  } finally { log.mockRestore(); }
+});
+
+test('allows an eight-second upstream decision instead of discarding it at four seconds', async () => {
+  vi.useFakeTimers();
+  const pending = decide({}, { ...deps(), fetch: () => new Promise(resolve => setTimeout(() => resolve(new Response(JSON.stringify(answer))), 8000)) });
+  await vi.advanceTimersByTimeAsync(8000);
+  expect(await pending).toMatchObject({ action: 'ATTACK' });
 });

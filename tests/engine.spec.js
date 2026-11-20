@@ -120,3 +120,25 @@ test.describe('debug build', () => {
     expect(seen.chasing).toBeGreaterThan(0);
   });
 });
+
+
+test('paused scene is redrawn when the canvas drawing buffer is resized', async ({ page }) => {
+  await page.addStyleTag({ content: '#canvas { width: 100%; max-width: 960px; aspect-ratio: 4 / 3; }' });
+  const sceneVisible = async () => {
+    const png = await page.locator('#canvas').screenshot();
+    return page.evaluate(async (base64) => {
+      const image = await createImageBitmap(await (await fetch(`data:image/png;base64,${base64}`)).blob());
+      const ctx = new OffscreenCanvas(image.width, image.height).getContext('2d');
+      ctx.drawImage(image, 0, 0);
+      return ctx.getImageData(0, 0, image.width, image.height).data.some((v, i) => i % 4 !== 3 && v > 32);
+    }, png.toString('base64'));
+  };
+  await expect.poll(sceneVisible).toBe(true);
+  await page.evaluate(() => DoomBridge.setPaused(true));
+  const before = await obs(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  // SDL resizes the backing buffer after a viewport change, which clears its pixels.
+  await page.evaluate(() => { const c = document.querySelector('#canvas'); c.width = c.clientWidth; c.height = c.clientHeight; });
+  await expect.poll(sceneVisible).toBe(true);
+  expect((await obs(page)).gametic).toBe(before.gametic);
+});
